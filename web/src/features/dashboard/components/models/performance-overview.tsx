@@ -119,7 +119,7 @@ export function PerformanceOverview() {
             />
             <InlineMetric
               icon={Database}
-              label={t('Cache hit rate')}
+              label={t('Cache')}
               value={formatCacheHitRate(
                 summary?.cache_hit_rate ?? Number.NaN,
                 summary?.input_tokens ?? 0

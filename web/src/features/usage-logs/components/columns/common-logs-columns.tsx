@@ -804,7 +804,7 @@ export function useCommonLogsColumns(
       },
       {
         id: 'cache_hit_rate',
-        header: t('Cache hit rate'),
+        header: t('Cache'),
         accessorFn: (row) =>
           getLogCacheHitRate(parseLogOther(row.other), row.prompt_tokens)
             ?.rate ?? -1,
@@ -822,18 +822,12 @@ export function useCommonLogsColumns(
 
           const rate = hit.rate.toFixed(1).replace(/\.0$/, '')
           return (
-            <div className='flex flex-col gap-0.5'>
-              <span className='font-mono text-xs font-medium tabular-nums'>
-                {rate}%
-              </span>
-              <span className='text-muted-foreground/60 font-mono text-[11px] tabular-nums'>
-                {hit.cacheReadTokens.toLocaleString()} /{' '}
-                {hit.inputTokens.toLocaleString()}
-              </span>
-            </div>
+            <span className='font-mono text-xs font-medium tabular-nums'>
+              {rate}%
+            </span>
           )
         },
-        size: 120,
+        size: 80,
       },
       {
         accessorKey: 'quota',

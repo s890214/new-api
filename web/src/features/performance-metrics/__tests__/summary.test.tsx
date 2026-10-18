@@ -243,7 +243,7 @@ describe('server performance summaries', () => {
         <PerformanceHealthPanel />
       </QueryClientProvider>
     )
-    expect(screen.getByText('Cache hit rate')).toBeVisible()
+    expect(screen.getByText('Cache')).toBeVisible()
     expect(screen.getByText('42.5%')).toBeVisible()
     expect(screen.getByText(/Cache 42\.5%/)).toBeVisible()
     // A model whose requests never reported usage stays unknown, not 0%.
