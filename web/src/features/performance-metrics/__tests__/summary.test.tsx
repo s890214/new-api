@@ -202,7 +202,51 @@ describe('server performance summaries', () => {
         <PerformanceHealthPanel />
       </QueryClientProvider>
     )
-    expect(screen.getAllByText('—')).toHaveLength(3)
+    expect(screen.getAllByText('—')).toHaveLength(4)
     expect(screen.queryByText('0.00%')).not.toBeInTheDocument()
+  })
+
+  it('reports the cache hit rate of the window and of each top model', () => {
+    client.setQueryData(['perf-metrics-summary', 24], {
+      success: true,
+      data: {
+        summary: {
+          ...summary,
+          cache_hit_rate: 42.5,
+          cache_read_tokens: 425,
+          input_tokens: 1000,
+        },
+        models: [
+          {
+            model_name: 'cached-model',
+            success_rate: 100,
+            avg_latency_ms: 900,
+            avg_tps: 10,
+            cache_hit_rate: 42.5,
+            cache_read_tokens: 425,
+            input_tokens: 1000,
+          },
+          {
+            model_name: 'uncached-model',
+            success_rate: 100,
+            avg_latency_ms: 800,
+            avg_tps: 12,
+            cache_hit_rate: 0,
+            cache_read_tokens: 0,
+            input_tokens: 0,
+          },
+        ],
+      },
+    })
+    render(
+      <QueryClientProvider client={client}>
+        <PerformanceHealthPanel />
+      </QueryClientProvider>
+    )
+    expect(screen.getByText('Cache hit rate')).toBeVisible()
+    expect(screen.getByText('42.5%')).toBeVisible()
+    expect(screen.getByText(/Cache 42\.5%/)).toBeVisible()
+    // A model whose requests never reported usage stays unknown, not 0%.
+    expect(screen.getByText(/Cache —/)).toBeVisible()
   })
 })

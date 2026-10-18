@@ -20,6 +20,10 @@ export type PerformanceSummary = {
   avg_latency_ms: number
   success_rate: number
   avg_tps: number
+  /** Cache read share of input tokens, 0-100; 0 when no input was sampled. */
+  cache_hit_rate: number
+  cache_read_tokens: number
+  input_tokens: number
 }
 
 export type PerformanceSeriesPoint = {
@@ -28,6 +32,7 @@ export type PerformanceSeriesPoint = {
   avg_latency_ms: number
   success_rate: number
   avg_tps: number
+  cache_hit_rate: number
 }
 
 export type PerformanceGroup = {
@@ -36,6 +41,9 @@ export type PerformanceGroup = {
   avg_latency_ms: number
   success_rate: number
   avg_tps: number
+  cache_hit_rate: number
+  cache_read_tokens: number
+  input_tokens: number
   series: PerformanceSeriesPoint[]
 }
 
@@ -60,6 +68,9 @@ export type PerfModelSummary = {
   avg_latency_ms: number
   success_rate: number
   avg_tps: number
+  cache_hit_rate: number
+  cache_read_tokens: number
+  input_tokens: number
   recent_success_series?: SuccessRatePoint[]
   request_count?: number
 }

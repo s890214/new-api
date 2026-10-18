@@ -1553,6 +1553,89 @@ func TestAppendToolSurchargeLogInfoWritesOnlyStructuredFields(t *testing.T) {
 // A request whose upstream returns no usage is logged without a charge. The
 // reason is stored as content_parts, which the web console renders in the
 // viewer's language; content keeps the English text.
+func TestPerformanceCacheInputs(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		summary   textQuotaSummary
+		wantCache int64
+		wantInput int64
+	}{
+		{
+			name:      "openai prompts already include cache reads",
+			summary:   textQuotaSummary{PromptTokens: 1000, CacheTokens: 300},
+			wantCache: 300,
+			wantInput: 1000,
+		},
+		{
+			name:      "claude input excludes cache reads and writes",
+			summary:   textQuotaSummary{PromptTokens: 300, CacheTokens: 500, CacheCreationTokens: 200, IsClaudeUsageSemantic: true},
+			wantCache: 500,
+			wantInput: 1000,
+		},
+		{
+			name:      "claude cache writes keep the larger of the combined and split counts",
+			summary:   textQuotaSummary{PromptTokens: 100, CacheTokens: 100, CacheCreationTokens: 900, CacheCreationTokens5m: 100, CacheCreationTokens1h: 100, IsClaudeUsageSemantic: true},
+			wantCache: 100,
+			wantInput: 1100,
+		},
+		{
+			name:      "requests without usage report nothing",
+			summary:   textQuotaSummary{},
+			wantCache: 0,
+			wantInput: 0,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cache, input := performanceCacheInputs(tc.summary)
+			assert.Equal(t, tc.wantCache, cache)
+			assert.Equal(t, tc.wantInput, input)
+		})
+	}
+}
+
+func TestPostTextConsumeQuotaRecordsCacheInputsForPerformance(t *testing.T) {
+	truncate(t)
+	const userID, channelID = 63, 63
+	seedUser(t, userID, 10_000)
+	seedChannel(t, channelID)
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+
+	newInfo := func() *relaycommon.RelayInfo {
+		return &relaycommon.RelayInfo{
+			UserId:          userID,
+			OriginModelName: "cache-input-model",
+			UsingGroup:      "default",
+			StartTime:       time.Now(),
+			ChannelMeta:     &relaycommon.ChannelMeta{ChannelId: channelID},
+			PriceData:       hosttypes.PriceData{ModelRatio: 1, CompletionRatio: 1, GroupRatioInfo: hosttypes.GroupRatioInfo{GroupRatio: 1}},
+		}
+	}
+
+	openai := newInfo()
+	PostTextConsumeQuota(ctx, openai, &dto.Usage{
+		PromptTokens:        1000,
+		CompletionTokens:    10,
+		PromptTokensDetails: dto.InputTokenDetails{CachedTokens: 300},
+	}, nil)
+	assert.Equal(t, int64(300), openai.PerformanceCacheReadTokens)
+	assert.Equal(t, int64(1000), openai.PerformanceInputTokens)
+
+	claude := newInfo()
+	PostTextConsumeQuota(ctx, claude, &dto.Usage{
+		PromptTokens:     300,
+		CompletionTokens: 10,
+		UsageSemantic:    "anthropic",
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens:         500,
+			CachedCreationTokens: 200,
+		},
+	}, nil)
+	assert.Equal(t, int64(500), claude.PerformanceCacheReadTokens)
+	assert.Equal(t, int64(1000), claude.PerformanceInputTokens)
+}
+
 func TestPostTextConsumeQuotaLogsMissingUsageAsStructuredContent(t *testing.T) {
 	truncate(t)
 	const userID, channelID = 62, 62

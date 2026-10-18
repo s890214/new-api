@@ -78,6 +78,18 @@ func (s *textQuotaSummary) hasBillableUsage() bool {
 		!s.ToolCallSurchargeQuota.IsZero()
 }
 
+// performanceCacheInputs normalizes the cache hit inputs of a settled request
+// for the performance panel. Claude reports ordinary input without cache reads,
+// while OpenAI-style prompts already include them, so the total input is
+// computed here instead of at every reader.
+func performanceCacheInputs(summary textQuotaSummary) (cacheReadTokens int64, inputTokens int64) {
+	inputTokens = int64(summary.PromptTokens)
+	if summary.IsClaudeUsageSemantic {
+		inputTokens += int64(summary.CacheTokens + cacheWriteTokensTotal(summary))
+	}
+	return int64(summary.CacheTokens), inputTokens
+}
+
 func cacheWriteTokensTotal(summary textQuotaSummary) int {
 	if summary.CacheCreationTokens5m > 0 || summary.CacheCreationTokens1h > 0 {
 		splitCacheWriteTokens := summary.CacheCreationTokens5m + summary.CacheCreationTokens1h
@@ -543,4 +555,5 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		Other:            other,
 	})
 	relayInfo.PerformanceOutputTokens = int64(summary.CompletionTokens)
+	relayInfo.PerformanceCacheReadTokens, relayInfo.PerformanceInputTokens = performanceCacheInputs(summary)
 }

@@ -58,6 +58,7 @@ import type { UsageLog } from '../../data/schema'
 import {
   formatModelName,
   decodeBillingExprB64,
+  getLogCacheHitRate,
   getTieredBillingSummary,
   hasAnyCacheTokens,
   parseLogOther,
@@ -691,6 +692,44 @@ export function useCommonLogsColumns(
         meta: { mobileTitle: true },
       },
       {
+        id: 'request_conversion',
+        header: t('Request Conversion'),
+        accessorFn: (row) => {
+          const chain = parseLogOther(row.other)?.request_conversion
+          return Array.isArray(chain) ? chain.filter(Boolean).join(' -> ') : ''
+        },
+        cell: ({ row }) => {
+          const log = row.original
+          if (!isDisplayableLogType(log.type)) return null
+
+          const chain = parseLogOther(log.other)?.request_conversion
+          const parts = Array.isArray(chain) ? chain.filter(Boolean) : []
+          if (parts.length === 0) {
+            return <span className='text-muted-foreground/40 text-xs'>—</span>
+          }
+
+          const label =
+            parts.length === 1
+              ? `${parts[0]} ${t('Native format')}`
+              : parts.join(' -> ')
+          return (
+            <TooltipProvider delay={300}>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <span className='block max-w-[220px] truncate font-mono text-[11px]' />
+                  }
+                >
+                  {label}
+                </TooltipTrigger>
+                <TooltipContent side='top'>{label}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )
+        },
+        size: 200,
+      },
+      {
         accessorKey: 'is_stream',
         header: t('Stream'),
         cell: ({ row }) => {
@@ -762,6 +801,39 @@ export function useCommonLogsColumns(
             </div>
           )
         },
+      },
+      {
+        id: 'cache_hit_rate',
+        header: t('Cache hit rate'),
+        accessorFn: (row) =>
+          getLogCacheHitRate(parseLogOther(row.other), row.prompt_tokens)
+            ?.rate ?? -1,
+        cell: ({ row }) => {
+          const log = row.original
+          if (!isDisplayableLogType(log.type)) return null
+
+          const hit = getLogCacheHitRate(
+            parseLogOther(log.other),
+            log.prompt_tokens
+          )
+          if (hit == null) {
+            return <span className='text-muted-foreground/40 text-xs'>—</span>
+          }
+
+          const rate = hit.rate.toFixed(1).replace(/\.0$/, '')
+          return (
+            <div className='flex flex-col gap-0.5'>
+              <span className='font-mono text-xs font-medium tabular-nums'>
+                {rate}%
+              </span>
+              <span className='text-muted-foreground/60 font-mono text-[11px] tabular-nums'>
+                {hit.cacheReadTokens.toLocaleString()} /{' '}
+                {hit.inputTokens.toLocaleString()}
+              </span>
+            </div>
+          )
+        },
+        size: 120,
       },
       {
         accessorKey: 'quota',

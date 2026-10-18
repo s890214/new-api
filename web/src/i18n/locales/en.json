@@ -992,6 +992,7 @@
     "Cache mode": "Cache mode",
     "Cache pricing": "Cache pricing",
     "Cache ratio": "Cache ratio",
+    "Cache hit rate": "Cache hit rate",
     "Cache Read": "Cache Read",
     "Cache read price": "Cache read price",
     "Cache repeated prompt prefixes for cheaper, faster reuse": "Cache repeated prompt prefixes for cheaper, faster reuse",

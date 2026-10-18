@@ -16,6 +16,10 @@ type Sample struct {
 	Success      bool
 	OutputTokens int64
 	GenerationMs int64
+	// CacheReadTokens and InputTokens carry the cache hit inputs; InputTokens
+	// includes cache reads. They stay zero when settlement had no usage.
+	CacheReadTokens int64
+	InputTokens     int64
 }
 
 type QueryParams struct {
@@ -29,9 +33,12 @@ type QueryParams struct {
 
 // Summary is the request-weighted aggregate over every bucket in the window.
 type Summary struct {
-	AvgLatencyMs int64   `json:"avg_latency_ms"`
-	SuccessRate  float64 `json:"success_rate"`
-	AvgTps       float64 `json:"avg_tps"`
+	AvgLatencyMs    int64   `json:"avg_latency_ms"`
+	SuccessRate     float64 `json:"success_rate"`
+	AvgTps          float64 `json:"avg_tps"`
+	CacheHitRate    float64 `json:"cache_hit_rate"`
+	CacheReadTokens int64   `json:"cache_read_tokens"`
+	InputTokens     int64   `json:"input_tokens"`
 }
 
 type BucketPoint struct {
@@ -40,15 +47,19 @@ type BucketPoint struct {
 	AvgLatencyMs int64   `json:"avg_latency_ms"`
 	SuccessRate  float64 `json:"success_rate"`
 	AvgTps       float64 `json:"avg_tps"`
+	CacheHitRate float64 `json:"cache_hit_rate"`
 }
 
 type GroupResult struct {
-	Group        string        `json:"group"`
-	AvgTtftMs    int64         `json:"avg_ttft_ms"`
-	AvgLatencyMs int64         `json:"avg_latency_ms"`
-	SuccessRate  float64       `json:"success_rate"`
-	AvgTps       float64       `json:"avg_tps"`
-	Series       []BucketPoint `json:"series"`
+	Group           string        `json:"group"`
+	AvgTtftMs       int64         `json:"avg_ttft_ms"`
+	AvgLatencyMs    int64         `json:"avg_latency_ms"`
+	SuccessRate     float64       `json:"success_rate"`
+	AvgTps          float64       `json:"avg_tps"`
+	CacheHitRate    float64       `json:"cache_hit_rate"`
+	CacheReadTokens int64         `json:"cache_read_tokens"`
+	InputTokens     int64         `json:"input_tokens"`
+	Series          []BucketPoint `json:"series"`
 }
 
 type QueryResult struct {
@@ -71,6 +82,9 @@ type ModelSummary struct {
 	AvgLatencyMs        int64              `json:"avg_latency_ms"`
 	SuccessRate         float64            `json:"success_rate"`
 	AvgTps              float64            `json:"avg_tps"`
+	CacheHitRate        float64            `json:"cache_hit_rate"`
+	CacheReadTokens     int64              `json:"cache_read_tokens"`
+	InputTokens         int64              `json:"input_tokens"`
 	RecentSuccessSeries []SuccessRatePoint `json:"recent_success_series,omitempty"`
 	RequestCount        int64              `json:"-"`
 }
@@ -92,23 +106,27 @@ type bucketKey struct {
 }
 
 type counters struct {
-	requestCount   int64
-	successCount   int64
-	totalLatencyMs int64
-	ttftSumMs      int64
-	ttftCount      int64
-	outputTokens   int64
-	generationMs   int64
+	requestCount    int64
+	successCount    int64
+	totalLatencyMs  int64
+	ttftSumMs       int64
+	ttftCount       int64
+	outputTokens    int64
+	generationMs    int64
+	cacheReadTokens int64
+	inputTokens     int64
 }
 
 type atomicBucket struct {
-	requestCount   atomic.Int64
-	successCount   atomic.Int64
-	totalLatencyMs atomic.Int64
-	ttftSumMs      atomic.Int64
-	ttftCount      atomic.Int64
-	outputTokens   atomic.Int64
-	generationMs   atomic.Int64
+	requestCount    atomic.Int64
+	successCount    atomic.Int64
+	totalLatencyMs  atomic.Int64
+	ttftSumMs       atomic.Int64
+	ttftCount       atomic.Int64
+	outputTokens    atomic.Int64
+	generationMs    atomic.Int64
+	cacheReadTokens atomic.Int64
+	inputTokens     atomic.Int64
 }
 
 func (b *atomicBucket) add(sample Sample) {
@@ -127,29 +145,39 @@ func (b *atomicBucket) add(sample Sample) {
 		b.outputTokens.Add(sample.OutputTokens)
 		b.generationMs.Add(sample.GenerationMs)
 	}
+	// Every sampled input counts toward the cache hit denominator; a request
+	// that read nothing from cache still lowers the rate instead of hiding.
+	if sample.InputTokens > 0 {
+		b.cacheReadTokens.Add(sample.CacheReadTokens)
+		b.inputTokens.Add(sample.InputTokens)
+	}
 }
 
 func (b *atomicBucket) snapshot() counters {
 	return counters{
-		requestCount:   b.requestCount.Load(),
-		successCount:   b.successCount.Load(),
-		totalLatencyMs: b.totalLatencyMs.Load(),
-		ttftSumMs:      b.ttftSumMs.Load(),
-		ttftCount:      b.ttftCount.Load(),
-		outputTokens:   b.outputTokens.Load(),
-		generationMs:   b.generationMs.Load(),
+		requestCount:    b.requestCount.Load(),
+		successCount:    b.successCount.Load(),
+		totalLatencyMs:  b.totalLatencyMs.Load(),
+		ttftSumMs:       b.ttftSumMs.Load(),
+		ttftCount:       b.ttftCount.Load(),
+		outputTokens:    b.outputTokens.Load(),
+		generationMs:    b.generationMs.Load(),
+		cacheReadTokens: b.cacheReadTokens.Load(),
+		inputTokens:     b.inputTokens.Load(),
 	}
 }
 
 func (b *atomicBucket) drain() counters {
 	return counters{
-		requestCount:   b.requestCount.Swap(0),
-		successCount:   b.successCount.Swap(0),
-		totalLatencyMs: b.totalLatencyMs.Swap(0),
-		ttftSumMs:      b.ttftSumMs.Swap(0),
-		ttftCount:      b.ttftCount.Swap(0),
-		outputTokens:   b.outputTokens.Swap(0),
-		generationMs:   b.generationMs.Swap(0),
+		requestCount:    b.requestCount.Swap(0),
+		successCount:    b.successCount.Swap(0),
+		totalLatencyMs:  b.totalLatencyMs.Swap(0),
+		ttftSumMs:       b.ttftSumMs.Swap(0),
+		ttftCount:       b.ttftCount.Swap(0),
+		outputTokens:    b.outputTokens.Swap(0),
+		generationMs:    b.generationMs.Swap(0),
+		cacheReadTokens: b.cacheReadTokens.Swap(0),
+		inputTokens:     b.inputTokens.Swap(0),
 	}
 }
 
@@ -174,5 +202,11 @@ func (b *atomicBucket) addCounters(c counters) {
 	}
 	if c.generationMs != 0 {
 		b.generationMs.Add(c.generationMs)
+	}
+	if c.cacheReadTokens != 0 {
+		b.cacheReadTokens.Add(c.cacheReadTokens)
+	}
+	if c.inputTokens != 0 {
+		b.inputTokens.Add(c.inputTokens)
 	}
 }

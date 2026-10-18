@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
-import { Gauge, HeartPulse, Timer } from 'lucide-react'
+import { Database, Gauge, HeartPulse, Timer } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -25,6 +25,7 @@ import { IconBadge, type IconBadgeTone } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
 import {
+  formatCacheHitRate,
   formatLatency,
   formatThroughput,
   formatUptimePct,
@@ -73,7 +74,7 @@ export function PerformanceHealthPanel() {
       </div>
 
       <div className='space-y-3 p-4 sm:p-5'>
-        <div className='grid grid-cols-3 gap-2'>
+        <div className='grid grid-cols-2 gap-2'>
           <MetricCell
             icon={HeartPulse}
             label={t('Success rate')}
@@ -97,6 +98,16 @@ export function PerformanceHealthPanel() {
             value={formatThroughput(summary?.avg_tps ?? 0)}
             loading={loading}
             tone='info'
+          />
+          <MetricCell
+            icon={Database}
+            label={t('Cache hit rate')}
+            value={formatCacheHitRate(
+              summary?.cache_hit_rate ?? Number.NaN,
+              summary?.input_tokens ?? 0
+            )}
+            loading={loading}
+            tone='primary'
           />
         </div>
 
@@ -122,6 +133,13 @@ export function PerformanceHealthPanel() {
                       {model.model_name}
                     </span>
                     <span className='inline-flex shrink-0 items-center gap-1'>
+                      <span className='text-muted-foreground font-mono text-[11px] tabular-nums'>
+                        {t('Cache')}{' '}
+                        {formatCacheHitRate(
+                          model.cache_hit_rate,
+                          model.input_tokens
+                        )}
+                      </span>
                       <span
                         className={cn(
                           'size-1.5 rounded-full',

@@ -170,6 +170,54 @@ export function parseLogOther(other: string): LogOtherData | null {
   }
 }
 
+export type LogCacheHitRate = {
+  /** Cache hit share of the input tokens, as a 0-100 percentage. */
+  rate: number
+  cacheReadTokens: number
+  inputTokens: number
+}
+
+/**
+ * Cache hit rate of one log row, or null when the row has no cache read or no
+ * input total to divide by.
+ *
+ * `input_tokens_total` is the normalized total written for non-Claude
+ * requests. Claude reports ordinary input without cache reads, so that case
+ * falls back to prompt + cache read + cache write tokens.
+ */
+export function getLogCacheHitRate(
+  other: LogOtherData | null,
+  promptTokens: number
+): LogCacheHitRate | null {
+  const cacheReadTokens = other?.cache_tokens || 0
+  if (cacheReadTokens <= 0) return null
+
+  let inputTokens = other?.input_tokens_total || 0
+  if (inputTokens <= 0) {
+    // The gateway keeps the larger of the combined and the split write
+    // counts, because upstreams report them inconsistently.
+    const splitWriteTokens =
+      (other?.cache_creation_tokens_5m || 0) +
+      (other?.cache_creation_tokens_1h || 0)
+    const cacheWriteTokens = Math.max(
+      splitWriteTokens,
+      other?.cache_creation_tokens || 0
+    )
+    const isClaudeSemantic =
+      other?.claude === true || other?.usage_semantic === 'anthropic'
+    inputTokens = isClaudeSemantic
+      ? promptTokens + cacheReadTokens + cacheWriteTokens
+      : promptTokens
+  }
+  if (inputTokens <= 0) return null
+
+  return {
+    rate: Math.min((cacheReadTokens / inputTokens) * 100, 100),
+    cacheReadTokens,
+    inputTokens,
+  }
+}
+
 export function getReasoningEffortVariant(
   effort: string | undefined
 ): StatusBadgeProps['variant'] {

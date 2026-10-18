@@ -215,7 +215,13 @@ type RelayInfo struct {
 	requestInferredToolKey string
 	// PerformanceOutputTokens is captured by settlement and sampled once at
 	// the request boundary, independently of billing success or failure.
-	PerformanceOutputTokens      int64
+	PerformanceOutputTokens int64
+	// PerformanceCacheReadTokens and PerformanceInputTokens feed the cache hit
+	// rate of the performance panel. Input tokens are the normalized total,
+	// so cache reads are already included whatever the upstream protocol
+	// reports.
+	PerformanceCacheReadTokens   int64
+	PerformanceInputTokens       int64
 	PerformanceBusinessRejection bool
 
 	// convOptions caches the converter settings snapshot (see ConvOptions).

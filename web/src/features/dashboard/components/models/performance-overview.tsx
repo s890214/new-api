@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
-import { Gauge, HeartPulse, Timer } from 'lucide-react'
+import { Database, Gauge, HeartPulse, Timer } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -25,6 +25,7 @@ import { IconBadge, type IconBadgeTone } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
 import {
+  formatCacheHitRate,
   formatLatency,
   formatThroughput,
   formatUptimePct,
@@ -116,6 +117,15 @@ export function PerformanceOverview() {
               value={formatThroughput(summary?.avg_tps ?? 0)}
               tone='info'
             />
+            <InlineMetric
+              icon={Database}
+              label={t('Cache hit rate')}
+              value={formatCacheHitRate(
+                summary?.cache_hit_rate ?? Number.NaN,
+                summary?.input_tokens ?? 0
+              )}
+              tone='primary'
+            />
           </div>
         )}
 
@@ -163,6 +173,7 @@ function InlineMetric(props: {
 }
 
 function ModelBadge(props: { model: PerfModelSummary }) {
+  const { t } = useTranslation()
   const model = props.model
 
   return (
@@ -184,6 +195,9 @@ function ModelBadge(props: { model: PerfModelSummary }) {
         )}
       >
         {formatUptimePct(model.success_rate)}
+      </span>
+      <span className='text-muted-foreground/70 font-mono text-[11px] tabular-nums'>
+        {t('Cache')} {formatCacheHitRate(model.cache_hit_rate, model.input_tokens)}
       </span>
     </span>
   )

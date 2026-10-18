@@ -186,12 +186,18 @@ export interface LogOtherData {
   text_input?: number
   text_output?: number
   cache_tokens?: number
+  // Normalized total input written for non-Claude requests; cache reads are
+  // already part of it.
+  input_tokens_total?: number
   image_cache_tokens?: number
   billing_tokens?: Record<string, number>
   cache_creation_tokens?: number
   cache_creation_tokens_5m?: number
   cache_creation_tokens_1h?: number
   claude?: boolean
+  // 'anthropic' marks Claude usage semantics, where the ordinary input count
+  // excludes cache reads.
+  usage_semantic?: string
   model_ratio?: number
   completion_ratio?: number
   model_price?: number

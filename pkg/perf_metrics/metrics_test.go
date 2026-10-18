@@ -347,6 +347,51 @@ func TestPerformanceAggregationAndFlush(t *testing.T) {
 				assert.Empty(t, history.RecentSuccessSeries["history-expired"])
 				assert.Empty(t, history.RecentSuccessSeries["history-hot-expired"])
 			})
+
+			t.Run("cache hit rate aggregates and persists without diluting it with usageless samples", func(t *testing.T) {
+				bucket := &atomicBucket{}
+				bucket.add(Sample{Success: true, LatencyMs: 100, CacheReadTokens: 300, InputTokens: 1000})
+				bucket.add(Sample{Success: true, LatencyMs: 100})
+				hotBuckets.Store(bucketKey{model: "cache-model", group: "a", bucketTs: hour}, bucket)
+
+				before, err := Query(QueryParams{Model: "cache-model", Hours: 24, AllowedGroups: groups})
+				require.NoError(t, err)
+				require.NotNil(t, before.Summary)
+				assert.Equal(t, 30.0, before.Summary.CacheHitRate)
+				assert.Equal(t, int64(300), before.Summary.CacheReadTokens)
+				assert.Equal(t, int64(1000), before.Summary.InputTokens)
+				require.Len(t, before.Series, 1)
+				assert.Equal(t, 30.0, before.Series[0].CacheHitRate)
+				require.Len(t, before.Groups, 1)
+				assert.Equal(t, 30.0, before.Groups[0].CacheHitRate)
+
+				all, err := QuerySummaryAll(24, groups, "cache-model")
+				require.NoError(t, err)
+				require.NotNil(t, all.Summary)
+				assert.Equal(t, 30.0, all.Summary.CacheHitRate)
+				assert.Equal(t, int64(300), all.Summary.CacheReadTokens)
+				assert.Equal(t, int64(1000), all.Summary.InputTokens)
+				models := lo.KeyBy(all.Models, func(m ModelSummary) string { return m.ModelName })
+				assert.Equal(t, 30.0, models["cache-model"].CacheHitRate)
+				assert.Equal(t, int64(1000), models["cache-model"].InputTokens)
+
+				flushCompletedBuckets()
+				persisted, err := Query(QueryParams{Model: "cache-model", Hours: 24, AllowedGroups: groups})
+				require.NoError(t, err)
+				assert.Equal(t, before.Summary, persisted.Summary)
+
+				var row model.PerfMetric
+				require.NoError(t, db.Where("model_name = ?", "cache-model").First(&row).Error)
+				assert.Equal(t, int64(300), row.CacheReadTokens)
+				assert.Equal(t, int64(1000), row.InputTokens)
+			})
 		})
 	}
+}
+
+func TestCacheHitRate(t *testing.T) {
+	assert.Equal(t, 30.0, cacheHitRate(counters{cacheReadTokens: 300, inputTokens: 1000}))
+	assert.Equal(t, 100.0, cacheHitRate(counters{cacheReadTokens: 150, inputTokens: 100}))
+	assert.Equal(t, 0.0, cacheHitRate(counters{cacheReadTokens: 300}))
+	assert.Equal(t, 0.0, cacheHitRate(counters{inputTokens: 1000}))
 }

@@ -33,6 +33,16 @@ export function formatUptimePct(pct: number): string {
   return `${pct.toFixed(2)}%`
 }
 
+/**
+ * Cache hit rate of the sampled window. `inputTokens` is the denominator the
+ * rate was computed from, so a zero means no request reported usage and the
+ * rate is unknown rather than 0%.
+ */
+export function formatCacheHitRate(pct: number, inputTokens: number): string {
+  if (inputTokens <= 0 || !Number.isFinite(pct)) return '—'
+  return `${pct.toFixed(pct >= 99.95 ? 0 : 1)}%`
+}
+
 export type SuccessRateLevel =
   | 'excellent'
   | 'good'
