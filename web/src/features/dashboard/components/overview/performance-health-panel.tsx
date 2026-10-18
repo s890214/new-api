@@ -123,7 +123,7 @@ export function PerformanceHealthPanel() {
               <span className='text-muted-foreground mb-1 block text-[11px] font-medium'>
                 {t('Top models by traffic')}
               </span>
-              <div className='grid grid-cols-1 gap-x-4 sm:grid-cols-2'>
+              <div className='flex flex-col gap-0.5'>
                 {topModels.map((model) => (
                   <div
                     key={model.model_name}
@@ -132,14 +132,7 @@ export function PerformanceHealthPanel() {
                     <span className='min-w-0 flex-1 truncate font-mono text-[11px]'>
                       {model.model_name}
                     </span>
-                    <span className='inline-flex shrink-0 items-center gap-1'>
-                      <span className='text-muted-foreground font-mono text-[11px] tabular-nums'>
-                        {t('Cache')}{' '}
-                        {formatCacheHitRate(
-                          model.cache_hit_rate,
-                          model.input_tokens
-                        )}
-                      </span>
+                    <span className='inline-flex shrink-0 items-center gap-1.5'>
                       <span
                         className={cn(
                           'size-1.5 rounded-full',
@@ -154,6 +147,16 @@ export function PerformanceHealthPanel() {
                         )}
                       >
                         {formatUptimePct(model.success_rate)}
+                      </span>
+                      <span className='text-muted-foreground/40 text-[11px]'>
+                        ·
+                      </span>
+                      <span className='text-muted-foreground font-mono text-[11px] tabular-nums'>
+                        {t('Cache')}{' '}
+                        {formatCacheHitRate(
+                          model.cache_hit_rate,
+                          model.input_tokens
+                        )}
                       </span>
                     </span>
                   </div>
