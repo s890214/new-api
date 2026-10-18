@@ -27,9 +27,11 @@ func ClassifyRelayOutcome(ctx context.Context, info *relaycommon.RelayInfo, apiE
 		return OutcomeIgnored
 	}
 	stream := info.StreamStatus.OutcomeSnapshot()
+	// 只要已收到完整的 response.completed 就视为正常完成；不再要求 EndReason 为 EOF/Done。
+	// 客户端（如 Codex CLI）收到完成事件后立即断连时 EndReason 会变成 ClientGone，但任务实际已完成。
 	completedNormally := info.IsStream && info.StreamStatus != nil && apiErr == nil &&
-		stream.Response == relaycommon.ResponseOutcomeCompleted &&
-		(stream.EndReason == relaycommon.StreamEndReasonEOF || stream.EndReason == relaycommon.StreamEndReasonDone) &&
+		(stream.Response == relaycommon.ResponseOutcomeCompleted ||
+			stream.EndReason == relaycommon.StreamEndReasonDone) &&
 		!stream.HasErrors && info.StreamStatus.EndError == nil
 	if ctx != nil && ctx.Err() == context.Canceled && !completedNormally {
 		return OutcomeIgnored
@@ -49,7 +51,10 @@ func ClassifyRelayOutcome(ctx context.Context, info *relaycommon.RelayInfo, apiE
 	if stream.Response == relaycommon.ResponseOutcomeCancelled || stream.EndReason == relaycommon.StreamEndReasonPingFail {
 		return OutcomeIgnored
 	}
-	if stream.EndReason == relaycommon.StreamEndReasonClientGone && !deadlineExceeded {
+	// 客户端收到 response.completed 后立即断开（Codex CLI 等常见行为）时，EndReason 记为 ClientGone，
+	// 但请求已经正常完成，不应丢弃健康样本。
+	if stream.EndReason == relaycommon.StreamEndReasonClientGone && !deadlineExceeded &&
+		stream.Response != relaycommon.ResponseOutcomeCompleted {
 		return OutcomeIgnored
 	}
 	if stream.Response == relaycommon.ResponseOutcomeIncomplete {
