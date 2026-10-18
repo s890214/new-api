@@ -708,26 +708,22 @@ export function useCommonLogsColumns(
             return <span className='text-muted-foreground/40 text-xs'>—</span>
           }
 
-          const label =
-            parts.length === 1
-              ? `${parts[0]} ${t('Native format')}`
-              : parts.join(' -> ')
           return (
-            <TooltipProvider delay={300}>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <span className='block max-w-[220px] truncate font-mono text-[11px]' />
-                  }
-                >
-                  {label}
-                </TooltipTrigger>
-                <TooltipContent side='top'>{label}</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <div className='flex max-w-[170px] flex-col gap-0.5 font-mono text-[11px] leading-tight'>
+              {parts.map((part) => (
+                <span key={part} className='break-words'>
+                  {part}
+                </span>
+              ))}
+              {parts.length === 1 && (
+                <span className='text-muted-foreground/60'>
+                  {t('Native format')}
+                </span>
+              )}
+            </div>
           )
         },
-        size: 200,
+        size: 170,
       },
       {
         accessorKey: 'is_stream',
